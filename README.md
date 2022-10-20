@@ -22,9 +22,6 @@ Created an vpc, subnets, internet gateway, routes, and route table using aws clo
 * Write command ```aws cloudformation update-stack --stack-name [stack_name] --template-body file://csye6225-infra.yml --parameters file://parameter.json``` to update exit stack and its resources
 * Write command ```aws cloudformation delete-stack --stack-name [stack_name] ``` to delete the stack and its resources
 
-**Option 2**
-* Write command ```aws cloudformation deploy --stack-name [stack_name] --profile [profile_name] --region us-east-1 --template-file csye6225-infra.yml  --parameter-overrides file://parameter.json``` to create stack and start the creation of the resources in aws
-* Write command ```aws cloudformation delete-stack --stack-name [stack_name] --profile [profile_name]``` to delete the stack and its resources
 
 ## Project Structure
 * *csye6225-infra.yml* : YAML CloudFormation file to create vpc, subnets, internet gateways, routes, and route table.
