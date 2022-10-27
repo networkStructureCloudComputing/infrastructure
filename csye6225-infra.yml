@@ -1,19 +1,19 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
 
-Description: Assignment 4
+Description: Assignment 5
 
 # Parameters Reference for the Template
 Parameters:
   VpcCidrBlock:
     Description: "CIDR block for VPC"
     Type: "String"
-    Default: "10.0.0.0/16"
+    Default: "10.0.0.0/17"
 
   NumberOfSubnets:
     Description: Number of Subnets to be created
     Type: String
-    Default: "3"
+    Default: "6"
 
   SubnetOffset:
     Description: Offest of Subnet from CIDR
@@ -28,7 +28,7 @@ Parameters:
   AmiImage:
     Description: Ami Image Id
     Type: String
-    Default: "ami-007caaf5660870b4d"
+    Default: "ami-08c40ec9ead489470"
 
   SSHLocation:
     AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
@@ -94,6 +94,117 @@ Parameters:
     Type: String
     Default: "80"
 
+  DatabaseInstanceIdentifier:
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+    Default: "csye6225"
+    Description: Instance identifier name
+    MaxLength: 60
+    MinLength: 1
+    Type: String
+
+  DatabaseName:
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+    Default: csye6225
+    Description: Postgres database name
+    MaxLength: 64
+    MinLength: 1
+    Type: String
+
+  DatabaseUser:
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+    Default: "csye6225"
+    Description: Username for Postgres database access
+    MaxLength: 16
+    MinLength: 1
+    NoEcho: true
+    Type: String
+
+  DatabasePassword:
+    AllowedPattern: "[a-zA-Z0-9]*"
+    ConstraintDescription: Must contain only alphanumeric characters
+    Default: "cloudFall2022"
+    Description: Password for postgres database access
+    MaxLength: 41
+    MinLength: 8
+    NoEcho: true
+    Type: String
+
+  DatabaseBackupRetentionPeriod:
+    ConstraintDescription: Database backup retention period must be between 0 and 35 days
+    Default: 0
+    Description: The number of days for which automatic DB snapshots are retained
+    MaxValue: 35
+    MinValue: 0
+    Type: Number
+
+  DatabaseAllocatedStorage:
+    ConstraintDescription: Must be between 5 and 1024Gb
+    Default: 5
+    Description: The size of the database (Gb)
+    MaxValue: 1024
+    MinValue: 5
+    Type: Number
+
+  DatabaseInstanceClass:
+    AllowedValues:
+      - db.t3.micro
+    ConstraintDescription: Must select a valid database instance type
+    Default: "db.t3.micro"
+    Description: The database instance type
+    Type: String
+
+  MultiAZDatabase:
+    AllowedValues:
+      - true
+      - false
+    ConstraintDescription: Must be either true or false
+    Default: "false"
+    Description: Creates a Multi-AZ MySQL Amazon RDS database instance
+    Type: String
+
+  S3BucketName:
+    Description: "S3 Bucket Name"
+    Type: "String"
+    Default: "cloud.sush.me"
+
+  S3BucketEncode:
+    Description: "S3 Bucket Encode"
+    Type: "String"
+    Default: "AES256"
+
+  RDSDBFamilyName:
+    Description: "RDS DB Family Name"
+    Type: "String"
+    Default: "postgres12"
+
+  DatabaseInstanceEngine:
+    Description: "RDS Instance Engine"
+    Type: "String"
+    Default: "postgres"
+
+  DatabaseInstanceEngineVersion:
+    Description: "RDS Instance Engine Version"
+    Type: "Number"
+    Default: 12.9
+
+  IAMRoleName:
+    Description: "IAM Role Name"
+    Type: "String"
+    Default: "EC2-CSYE6225"
+
+  IAMPolicyName:
+    Description: "IAM Policy Name"
+    Type: "String"
+    Default: "CodeDeploy-EC2-S3"
+
+  BucketRegion:
+    Description: "Bucket Region"
+    Type: "String"
+    Default: "us-east-1"
+
 Resources:
   # Create VPC
   MyVPC:
@@ -139,7 +250,7 @@ Resources:
       DestinationCidrBlock: !Ref DestinationCidrBlockPublic
       GatewayId: !Ref InternetGateWay
 
-  # Create Subnet and Attachment of Subnet with Route Table
+  # Create Public Subnet and Attachment of Subnet with Route Table
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -215,6 +326,91 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet3
 
+  # Create Private Route Table
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - PrivateRouteTable
+
+  # Create Private Subnet and Attachment of Subnet with Route Table
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock:
+        !Select [
+          3,
+          !Cidr [
+            !GetAtt MyVPC.CidrBlock,
+            !Ref NumberOfSubnets,
+            !Ref SubnetOffset,
+          ],
+        ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - PrivateSubnet1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock:
+        !Select [
+          4,
+          !Cidr [
+            !GetAtt MyVPC.CidrBlock,
+            !Ref NumberOfSubnets,
+            !Ref SubnetOffset,
+          ],
+        ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - PrivateSubnet2
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      CidrBlock:
+        !Select [
+          5,
+          !Cidr [
+            !GetAtt MyVPC.CidrBlock,
+            !Ref NumberOfSubnets,
+            !Ref SubnetOffset,
+          ],
+        ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - PrivateSubnet1
+
+  PrivateSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet3
+
   # Create Internet Security Group
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -242,14 +438,37 @@ Resources:
           ToPort: !Ref SSHPortNo
           CidrIp: !Ref DestinationCidrBlockPublic
       SecurityGroupEgress:
-        - IpProtocol: -1
-          FromPort: 0
-          ToPort: 0
+        - IpProtocol: tcp
+          FromPort: !Ref HttpPortNo
+          ToPort: !Ref HttpPortNo
+          CidrIp: !Ref DestinationCidrBlockPublic
+        - IpProtocol: tcp
+          FromPort: !Ref PostGresPortNo
+          ToPort: !Ref PostGresPortNo
+          CidrIp: !Ref DestinationCidrBlockPublic
+        - IpProtocol: tcp
+          FromPort: !Ref VirtualPortNo
+          ToPort: !Ref VirtualPortNo
           CidrIp: !Ref DestinationCidrBlockPublic
       VpcId: !Ref MyVPC
       Tags:
         - Key: Name
           Value: application
+
+  # Create Database Security Group
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref PostGresPortNo
+          ToPort: !Ref PostGresPortNo
+          SourceSecurityGroupId: !Ref InstanceSecurityGroup
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: database
 
   # Create EC2 Instance
   MyEC2Instance:
@@ -267,6 +486,163 @@ Resources:
       SecurityGroupIds:
         - !Ref InstanceSecurityGroup
       SubnetId: !Ref PublicSubnet1
+      IamInstanceProfile: !Ref RoleInstanceProfile
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              #!/bin/bash
+              cat > /etc/environment << 'EOF'
+              DB_USERNAME=${DatabaseUser}
+              DB_NAME=${DatabaseName}
+              DB_PASSWORD=${DatabasePassword}
+              DB_HOSTNAME=${HostName}
+              S3_BUCKET=${S3Bucket}
+              PORT=${PortNo}
+              AWS_REGION=${region}
+              EOF
+
+              cat > /etc/profile.d/load_env.sh << 'EOF'
+              export DB_USERNAME=${DatabaseUser}
+              export DB_NAME=${DatabaseName}
+              export DB_PASSWORD=${DatabasePassword}
+              export DB_HOSTNAME=${HostName}
+              export S3_BUCKET=${S3Bucket}
+              export PORT=${PortNo}
+              export AWS_REGION=${region}
+              sudo systemctl start nodeApi.service
+              EOF
+            - {
+                DatabaseName: !Ref DatabaseName,
+                DatabaseUser: !Ref DatabaseUser,
+                DatabasePassword: !Ref DatabasePassword,
+                S3Bucket: !Ref S3Bucket,
+                HostName: !GetAtt DatabaseInstance.Endpoint.Address,
+                PortNo: !Ref PostGresPortNo,
+                region: !Ref BucketRegion,
+              }
+
+  # Create S3 Bucket Instance
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      AccessControl: Private
+      BucketName:
+        !Join [
+          ".",
+          [!Select [2, !Split [/, !Ref AWS::StackId]], !Ref S3BucketName],
+        ]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: !Ref S3BucketEncode
+      LifecycleConfiguration:
+        Rules:
+          - Id: myS3Rule
+            Prefix: mys3rule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+
+  # Create RDS DB Parameter Group
+  RDSDBParameterGroup:
+    Type: "AWS::RDS::DBParameterGroup"
+    Properties:
+      Description: CloudFormation Sample Postgres Parameter Group
+      Family: !Ref RDSDBFamilyName
+      Parameters:
+        log_statement: "all"
+        log_duration: "on"
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - RDSDBParameterGroup
+
+  # Create Database Subnet Group
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS database
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - Database subnets
+
+  # Create RDS Instance
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: !Ref DatabaseAllocatedStorage
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      BackupRetentionPeriod: !Ref DatabaseBackupRetentionPeriod
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      DBInstanceIdentifier: !Ref DatabaseInstanceIdentifier
+      DBName: !Ref DatabaseName
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      Engine: !Ref DatabaseInstanceEngine
+      EngineVersion: !Ref DatabaseInstanceEngineVersion
+      MasterUsername: !Ref DatabaseUser
+      MasterUserPassword: !Ref DatabasePassword
+      MultiAZ: !Ref MultiAZDatabase
+      DBParameterGroupName: !Ref RDSDBParameterGroup
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+
+  # Create IAM Role
+  CreateIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Create IAM Role for EC2
+      AssumeRolePolicyDocument:
+        {
+          "Statement":
+            [
+              {
+                "Effect": "Allow",
+                "Principal": { "Service": ["ec2.amazonaws.com"] },
+                "Action": ["sts:AssumeRole"],
+                "Sid": "",
+              },
+            ],
+        }
+      RoleName: !Ref IAMRoleName
+      Tags:
+        - Key: Name
+          Value: !Ref IAMRoleName
+
+  # Create IAM Role Profile
+  RoleInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref CreateIAMRole
+
+  # Create IAM Policy
+  CreatePolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: !Ref IAMPolicyName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:PutObject"
+              - "s3:GetObject"
+              - "s3:DeleteObject"
+            Resource:
+              - !Join ["", ["arn:aws:s3:::", !Ref S3Bucket]]
+              - !Join ["", ["arn:aws:s3:::", !Ref S3Bucket, "/*"]]
+      Roles:
+        - !Ref CreateIAMRole
 
 # Output Data
 Outputs:
@@ -295,6 +671,22 @@ Outputs:
     Description: Public Route Table
     Value: !Ref PublicRouteTable
 
+  PrivateSubnet1:
+    Description: Private Subnet AZ1
+    Value: !Ref PrivateSubnet1
+
+  PrivateSubnet2:
+    Description: Private Subnet AZ2
+    Value: !Ref PrivateSubnet2
+
+  PrivateSubnet3:
+    Description: Private Subnet AZ2
+    Value: !Ref PrivateSubnet3
+
+  PrivateRouteTable:
+    Description: Private Route Table
+    Value: !Ref PrivateRouteTable
+
   InternetGateWay:
     Description: Internet GateWay
     Value: !Ref InternetGateWay
@@ -306,3 +698,27 @@ Outputs:
   InstanceSecurityGroup:
     Description: Internet GateWay
     Value: !Ref InstanceSecurityGroup
+
+  DBSecurityGroup:
+    Description: DB Security Group
+    Value: !Ref DBSecurityGroup
+
+  S3BucketName:
+    Description: S3 Bucket Name
+    Value: !Ref S3Bucket
+
+  RDSDBParameterGroup:
+    Description: RDS DB Parameter Group
+    Value: !Ref RDSDBParameterGroup
+
+  DatabaseInstance:
+    Description: RDS Instance
+    Value: !Ref DatabaseInstance
+
+  CreateIAMRole:
+    Description: IAM Role
+    Value: !Ref CreateIAMRole
+
+  CreatePolicy:
+    Description: Policy Name
+    Value: !Ref CreatePolicy
