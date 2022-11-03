@@ -168,7 +168,7 @@ Parameters:
   S3BucketName:
     Description: "S3 Bucket Name"
     Type: "String"
-    Default: "cloud.sush.me"
+    Default: "prod.spmujumdar.me"
 
   S3BucketEncode:
     Description: "S3 Bucket Encode"
@@ -204,6 +204,16 @@ Parameters:
     Description: "Bucket Region"
     Type: "String"
     Default: "us-east-1"
+
+  HostedZoneName:
+    Description: "Hosted Name"
+    Type: "String"
+    Default: "prod.spmujumdar.me."
+
+  HostedType:
+    Description: "Hosted Type"
+    Type: "String"
+    Default: "A"
 
 Resources:
   # Create VPC
@@ -510,8 +520,11 @@ Resources:
               export S3_BUCKET=${S3Bucket}
               export PORT=${PortNo}
               export AWS_REGION=${region}
-              sudo systemctl start nodeApi.service
               EOF
+              sudo iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 3000            
+              sudo systemctl enable node.service
+              sudo systemctl start nodeApi.service
+              sudo systemctl status node.service
             - {
                 DatabaseName: !Ref DatabaseName,
                 DatabaseUser: !Ref DatabaseUser,
@@ -643,6 +656,18 @@ Resources:
               - !Join ["", ["arn:aws:s3:::", !Ref S3Bucket, "/*"]]
       Roles:
         - !Ref CreateIAMRole
+
+  #Route 53
+  myDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Ref 'HostedZoneName'
+      Comment: DNS name for my instance.
+      Name: "prod.spmujumdar.me."
+      Type: A
+      TTL: 60
+      ResourceRecords:
+      - !GetAtt MyEC2Instance.PublicIp
 
 # Output Data
 Outputs:
