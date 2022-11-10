@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
 
-Description: Assignment 5
+Description: Assignment 7
 
 # Parameters Reference for the Template
 Parameters:
@@ -214,6 +214,11 @@ Parameters:
     Description: "Hosted Type"
     Type: "String"
     Default: "A"
+
+  CloudWatchAgentServerPolicyArns:
+    Description: "Create IAM Role Cloud Watch Agent Server Policy Arns"
+    Type: "String"
+    Default: "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 
 Resources:
   # Create VPC
@@ -520,11 +525,13 @@ Resources:
               export S3_BUCKET=${S3Bucket}
               export PORT=${PortNo}
               export AWS_REGION=${region}
-              EOF
-              sudo iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 3000            
-              sudo systemctl enable node.service
+              EOF            
+              sudo systemctl enable nodeApi.service
               sudo systemctl start nodeApi.service
-              sudo systemctl status node.service
+              sudo systemctl status nodeApi.service
+              sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/home/ubuntu/amazon-cloudwatch-agent.json -s
+              sudo systemctl enable amazon-cloudwatch-agent
+              sudo systemctl start amazon-cloudwatch-agent
             - {
                 DatabaseName: !Ref DatabaseName,
                 DatabaseUser: !Ref DatabaseUser,
@@ -630,6 +637,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Ref IAMRoleName
+      ManagedPolicyArns:
+          - !Ref CloudWatchAgentServerPolicyArns
 
   # Create IAM Role Profile
   RoleInstanceProfile:
@@ -656,7 +665,7 @@ Resources:
               - !Join ["", ["arn:aws:s3:::", !Ref S3Bucket, "/*"]]
       Roles:
         - !Ref CreateIAMRole
-
+  
   #Route 53
   myDNSRecord:
     Type: AWS::Route53::RecordSet
