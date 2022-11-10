@@ -28,4 +28,4 @@ Created an vpc, subnets, internet gateway, routes, security group, EC2 instance,
 * AWS CLI
 
 ## Features
-* Create, Update, and Delete stack and its resources using cloud formation
+* Create, Update, and Delete stack and its resources(RDS, S3, EC2, Route53, etc) using cloud formation
