@@ -19,6 +19,8 @@ Created an vpc, subnets, internet gateway, routes, security group, EC2 instance,
 * Write command ```aws cloudformation update-stack --stack-name [stack name] --template-body file://csye6225-infra.yml --parameters file://parameter.json --capabilities CAPABILITY_NAMED_IAM``` to update exit stack and its resources
 * Write command ```aws cloudformation delete-stack --stack-name [stack name] ``` to delete the stack and its resources
 * Write command ```aws s3 rm s3://bucket-name --recursive``` to delete data from s3
+* Write command ```aws --profile productionAdmin acm import-certificate --certificate fileb://certificate.crt  --certificate-chain fileb://ca_bundle.crt  --private-key fileb://private.key``` to import certificate
+
 
 ## Project Structure
 * *csye6225-infra.yml* : It has it's logic to create vpc, subnets, internet gateways, routes, route table,security group, Db security group, S3, RDS instance, IAM Role, Policy, EC2 instance, userData, and attachment.
